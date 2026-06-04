@@ -26,7 +26,7 @@ if uploaded_file:
 
     # --- NARRATIVE PART 1: The Top Line ---
     st.header("Engagement Overview")
-    st.write("Tracking overall volume and show rates across all sessions.")
+    st.write("Tracking overall volume, show rates, and frequency across all sessions.")
     
     col_metric, col_gauge = st.columns([1, 2])
     
@@ -58,6 +58,28 @@ if uploaded_file:
         ))
         fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
         st.plotly_chart(fig_gauge, use_container_width=True)
+
+    # Frequency Distribution Graphs
+    reg_dist = df[df['reg_volume'] > 0]['reg_volume'].value_counts().reset_index()
+    reg_dist.columns = ['Number of Registrations', 'People']
+    reg_dist = reg_dist.sort_values('Number of Registrations')
+
+    att_dist = df[df['att_volume'] > 0]['att_volume'].value_counts().reset_index()
+    att_dist.columns = ['Number of Attendances', 'People']
+    att_dist = att_dist.sort_values('Number of Attendances')
+
+    col_dist1, col_dist2 = st.columns(2)
+    
+    with col_dist1:
+        fig_reg_dist = px.bar(reg_dist, x='Number of Registrations', y='People', title="Registration Frequency per Person")
+        # Force the X-axis to show whole numbers only
+        fig_reg_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+        st.plotly_chart(fig_reg_dist, use_container_width=True)
+        
+    with col_dist2:
+        fig_att_dist = px.bar(att_dist, x='Number of Attendances', y='People', title="Attendance Frequency per Person")
+        fig_att_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+        st.plotly_chart(fig_att_dist, use_container_width=True)
 
     st.divider()
 

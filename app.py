@@ -15,57 +15,60 @@ if uploaded_file:
 
     st.success("Data loaded successfully.")
 
-    # 1. Standard Waterfall Funnel (Updated Logic)
+    # 1. Standard Waterfall Funnel Metrics (Updated for 4 Funnels)
     st.subheader("1. Standard Waterfall Funnel Metrics")
     
+    # Define Customer Status first so we can split the cohorts
+    df['Customer Status'] = df['Lifecycle Stage'].apply(lambda x: 'Existing' if 'Customer' in str(x) else 'Net-New')
+
     # Define known Registrants and Attendees (Filtering out nulls)
     df_registrants = df[df['Live Demo Registered'].notna() & (df['Live Demo Registered'] != '')]
     df_attendees = df[df['Live Demo Attended'].notna() & (df['Live Demo Attended'] != '')]
 
-    # Base counts (unique people)
-    total_registrants_count = len(df_registrants)
-    total_attendees_count = len(df_attendees)
+    # Split into Net-New and Customer DataFrames
+    nn_reg = df_registrants[df_registrants['Customer Status'] == 'Net-New']
+    cust_reg = df_registrants[df_registrants['Customer Status'] == 'Existing']
+    
+    nn_att = df_attendees[df_attendees['Customer Status'] == 'Net-New']
+    cust_att = df_attendees[df_attendees['Customer Status'] == 'Existing']
 
-    # Strictly enforced pipeline stages
+    # Strictly enforced pipeline stages (Customers excluded from bottom of funnel)
     mql_stages = ['Marketing Qualified Lead', 'Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
     sal_stages = ['Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
     sql_stages = ['Sales Qualified Lead', 'Opportunity']
     opp_stages = ['Opportunity']
 
-    # Registrant Funnel Math
-    reg_mqls = df_registrants['Lifecycle Stage'].isin(mql_stages).sum()
-    reg_sals = df_registrants['Lifecycle Stage'].isin(sal_stages).sum()
-    reg_sqls = df_registrants['Lifecycle Stage'].isin(sql_stages).sum()
-    reg_opps = df_registrants['Lifecycle Stage'].isin(opp_stages).sum()
-
-    # Attendee Funnel Math
-    att_mqls = df_attendees['Lifecycle Stage'].isin(mql_stages).sum()
-    att_sals = df_attendees['Lifecycle Stage'].isin(sal_stages).sum()
-    att_sqls = df_attendees['Lifecycle Stage'].isin(sql_stages).sum()
-    att_opps = df_attendees['Lifecycle Stage'].isin(opp_stages).sum()
-
-    # Build Funnel Data
-    funnel_reg_data = pd.DataFrame(dict(
-        number=[total_registrants_count, reg_mqls, reg_sals, reg_sqls, reg_opps],
-        stage=["Registrants", "MQLs", "SALs", "SQLs", "Opportunities"]
-    ))
-    
-    funnel_att_data = pd.DataFrame(dict(
-        number=[total_attendees_count, att_mqls, att_sals, att_sqls, att_opps],
-        stage=["Attendees", "MQLs", "SALs", "SQLs", "Opportunities"]
-    ))
-
-    # Plot Two Funnels Side-by-Side
-    col_funnel1, col_funnel2 = st.columns(2)
-    
-    with col_funnel1:
-        fig_reg = px.funnel(funnel_reg_data, x='number', y='stage', title="Registrant Funnel")
-        st.plotly_chart(fig_reg, use_container_width=True)
+    # Helper function to generate funnel dataframe
+    def build_funnel_df(cohort_df, base_label):
+        total_count = len(cohort_df)
+        mqls = cohort_df['Lifecycle Stage'].isin(mql_stages).sum()
+        sals = cohort_df['Lifecycle Stage'].isin(sal_stages).sum()
+        sqls = cohort_df['Lifecycle Stage'].isin(sql_stages).sum()
+        opps = cohort_df['Lifecycle Stage'].isin(opp_stages).sum()
         
-    with col_funnel2:
-        fig_att = px.funnel(funnel_att_data, x='number', y='stage', title="Attendee Funnel")
-        st.plotly_chart(fig_att, use_container_width=True)
+        return pd.DataFrame(dict(
+            number=[total_count, mqls, sals, sqls, opps],
+            stage=[base_label, "MQLs", "SALs", "SQLs", "Opportunities"]
+        ))
 
+    # Build the 4 dataframes
+    df_funnel_nn_reg = build_funnel_df(nn_reg, "Registrants")
+    df_funnel_nn_att = build_funnel_df(nn_att, "Attendees")
+    df_funnel_cust_reg = build_funnel_df(cust_reg, "Registrants")
+    df_funnel_cust_att = build_funnel_df(cust_att, "Attendees")
+
+    # Plotting in a 2x2 grid
+    col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
+    
+    with col1:
+        st.plotly_chart(px.funnel(df_funnel_nn_reg, x='number', y='stage', title="Net-New Registrants"), use_container_width=True)
+    with col2:
+        st.plotly_chart(px.funnel(df_funnel_nn_att, x='number', y='stage', title="Net-New Attendees"), use_container_width=True)
+    with col3:
+        st.plotly_chart(px.funnel(df_funnel_cust_reg, x='number', y='stage', title="Customer Registrants"), use_container_width=True)
+    with col4:
+        st.plotly_chart(px.funnel(df_funnel_cust_att, x='number', y='stage', title="Customer Attendees"), use_container_width=True)
     # 2. Promotion Channels & Volume
     st.subheader("2. Promotion Channels & Volume")
     webinars_run = st.number_input("Total Webinars Run", min_value=1, value=10)

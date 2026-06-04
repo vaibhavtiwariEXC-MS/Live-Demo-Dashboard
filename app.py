@@ -77,33 +77,47 @@ if uploaded_file:
     with col4:
         st.plotly_chart(px.funnel(df_funnel_cust_att, x='number', y='stage', title="Customer Attendees"), use_container_width=True)
         
-    # 2. Promotion Channels & Volume
+    # 2. Promotion Channels & Volume (Updated for Fractional Pie Charts)
     st.subheader("2. Promotion Channels & Volume")
     webinars_run = st.number_input("Total Webinars Run", min_value=1, value=10)
     
-    # Calculate volume of multi-select dates for channels and show rate
+    # Calculate volume of multi-select dates for channels
     df['reg_volume'] = df['Live Demo Registered'].dropna().apply(lambda x: len(str(x).split(',')))
     df['att_volume'] = df['Live Demo Attended'].dropna().apply(lambda x: len(str(x).split(',')))
     
     if 'Campaign Source1' in df.columns:
         df_channels = df.copy()
-        df_channels['Campaign Source1'] = df_channels['Campaign Source1'].astype(str).str.split(',')
+        
+        # Standardize delimiters (replace semicolons with commas) and split
+        df_channels['Campaign Source1'] = df_channels['Campaign Source1'].astype(str).str.replace(';', ',').str.split(',')
+        
+        # Calculate the weight for fractional attribution
+        df_channels['campaign_count'] = df_channels['Campaign Source1'].apply(lambda x: len(x) if isinstance(x, list) else 1)
+        
+        # Apply the fractional weight to volumes
+        df_channels['reg_weighted'] = df_channels['reg_volume'] / df_channels['campaign_count']
+        df_channels['att_weighted'] = df_channels['att_volume'] / df_channels['campaign_count']
+        
+        # Explode the lists into individual rows
         df_channels = df_channels.explode('Campaign Source1')
         df_channels['Campaign Source1'] = df_channels['Campaign Source1'].str.strip()
         
+        # Group and sum the fractional values
         channel_stats = df_channels.groupby('Campaign Source1').agg(
-            Registrations=('reg_volume', 'sum'),
-            Attendees=('att_volume', 'sum')
+            Registrations=('reg_weighted', 'sum'),
+            Attendees=('att_weighted', 'sum')
         ).reset_index()
         
-        fig_channels = px.bar(
-            channel_stats, 
-            x='Campaign Source1', 
-            y=['Registrations', 'Attendees'], 
-            barmode='group',
-            title="Total Volumes by Channel"
-        )
-        st.plotly_chart(fig_channels, use_container_width=True)
+        # Plotting two pie charts
+        col_pie1, col_pie2 = st.columns(2)
+        
+        with col_pie1:
+            fig_reg_pie = px.pie(channel_stats, names='Campaign Source1', values='Registrations', title="Registrations by Channel (Fractional)")
+            st.plotly_chart(fig_reg_pie, use_container_width=True)
+            
+        with col_pie2:
+            fig_att_pie = px.pie(channel_stats, names='Campaign Source1', values='Attendees', title="Attendees by Channel (Fractional)")
+            st.plotly_chart(fig_att_pie, use_container_width=True)
 
     # 3. Micro-Conversions & Engagement
     st.subheader("3. Micro-Conversions & Engagement")

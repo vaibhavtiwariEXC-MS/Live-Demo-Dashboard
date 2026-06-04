@@ -16,6 +16,9 @@ if uploaded_file:
 
     st.success("Data loaded successfully.")
 
+    with st.expander("View Raw Data"):
+        st.dataframe(df)
+
     # 1. Standard Waterfall Funnel Metrics (Updated for Customer Stages)
     st.subheader("1. Standard Waterfall Funnel Metrics")
     
@@ -198,35 +201,4 @@ if uploaded_file:
         else:
             st.warning("No valid FTE data found to generate histogram.")
 
-    # 5. Sales Follow-up (MQL to SAL Conversion by Month)
-    st.subheader("5. Sales Follow-up Execution (March vs May)")
-    date_col = 'Date entered "Marketing Qualified Lead (Lifecycle Stage Pipeline)"'
-    
-    if date_col in df.columns:
-        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-        
-        march_mqls = df[df[date_col].dt.month == 3]
-        may_mqls = df[df[date_col].dt.month == 5]
-        
-        march_mql_count = len(march_mqls)
-        may_mql_count = len(may_mqls)
-        
-        march_sal_count = march_mqls['Lifecycle Stage'].isin(sal_stages).sum()
-        may_sal_count = may_mqls['Lifecycle Stage'].isin(sal_stages).sum()
-        
-        march_rate = (march_sal_count / march_mql_count * 100) if march_mql_count > 0 else 0
-        may_rate = (may_sal_count / may_mql_count * 100) if may_mql_count > 0 else 0
-        
-        rate_data = pd.DataFrame({
-            "Month": ["March", "May"],
-            "MQLs Generated": [march_mql_count, may_mql_count],
-            "Converted to SAL": [march_sal_count, may_sal_count],
-            "Conversion Rate (%)": [march_rate, may_rate]
-        })
-        
-        st.dataframe(rate_data)
-        
-        fig_rates = px.bar(rate_data, x="Month", y="Conversion Rate (%)", title="MQL to SAL Conversion Rate")
-        st.plotly_chart(fig_rates, use_container_width=True)
-    else:
-        st.warning(f"Could not find the column: {date_col}")
+

@@ -15,7 +15,7 @@ if uploaded_file:
 
     st.success("Data loaded successfully.")
 
-    # 1. Standard Waterfall Funnel Metrics (Updated for 4 Funnels)
+    # 1. Standard Waterfall Funnel Metrics (Updated for Customer Stages)
     st.subheader("1. Standard Waterfall Funnel Metrics")
     
     # Define Customer Status first so we can split the cohorts
@@ -32,30 +32,37 @@ if uploaded_file:
     nn_att = df_attendees[df_attendees['Customer Status'] == 'Net-New']
     cust_att = df_attendees[df_attendees['Customer Status'] == 'Existing']
 
-    # Strictly enforced pipeline stages (Customers excluded from bottom of funnel)
-    mql_stages = ['Marketing Qualified Lead', 'Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
-    sal_stages = ['Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
-    sql_stages = ['Sales Qualified Lead', 'Opportunity']
-    opp_stages = ['Opportunity']
+    # Strictly enforced pipeline stages for Net-New
+    nn_mql_stages = ['Marketing Qualified Lead', 'Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
+    nn_sal_stages = ['Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
+    nn_sql_stages = ['Sales Qualified Lead', 'Opportunity']
+    nn_opp_stages = ['Opportunity']
 
-    # Helper function to generate funnel dataframe
-    def build_funnel_df(cohort_df, base_label):
+    # Strictly enforced pipeline stages for Existing Customers
+    cust_mql_stages = ['Customer - MQL', 'Customer - SAL', 'Customer - SQL', 'Customer - Opp']
+    cust_sal_stages = ['Customer - SAL', 'Customer - SQL', 'Customer - Opp']
+    cust_sql_stages = ['Customer - SQL', 'Customer - Opp']
+    cust_opp_stages = ['Customer - Opp']
+
+    # Helper function to generate funnel dataframe with custom stage lists
+    def build_funnel_df(cohort_df, base_label, mql_list, sal_list, sql_list, opp_list):
         total_count = len(cohort_df)
-        mqls = cohort_df['Lifecycle Stage'].isin(mql_stages).sum()
-        sals = cohort_df['Lifecycle Stage'].isin(sal_stages).sum()
-        sqls = cohort_df['Lifecycle Stage'].isin(sql_stages).sum()
-        opps = cohort_df['Lifecycle Stage'].isin(opp_stages).sum()
+        mqls = cohort_df['Lifecycle Stage'].isin(mql_list).sum()
+        sals = cohort_df['Lifecycle Stage'].isin(sal_list).sum()
+        sqls = cohort_df['Lifecycle Stage'].isin(sql_list).sum()
+        opps = cohort_df['Lifecycle Stage'].isin(opp_list).sum()
         
         return pd.DataFrame(dict(
             number=[total_count, mqls, sals, sqls, opps],
             stage=[base_label, "MQLs", "SALs", "SQLs", "Opportunities"]
         ))
 
-    # Build the 4 dataframes
-    df_funnel_nn_reg = build_funnel_df(nn_reg, "Registrants")
-    df_funnel_nn_att = build_funnel_df(nn_att, "Attendees")
-    df_funnel_cust_reg = build_funnel_df(cust_reg, "Registrants")
-    df_funnel_cust_att = build_funnel_df(cust_att, "Attendees")
+    # Build the 4 dataframes passing the correct stage lists
+    df_funnel_nn_reg = build_funnel_df(nn_reg, "Registrants", nn_mql_stages, nn_sal_stages, nn_sql_stages, nn_opp_stages)
+    df_funnel_nn_att = build_funnel_df(nn_att, "Attendees", nn_mql_stages, nn_sal_stages, nn_sql_stages, nn_opp_stages)
+    
+    df_funnel_cust_reg = build_funnel_df(cust_reg, "Registrants", cust_mql_stages, cust_sal_stages, cust_sql_stages, cust_opp_stages)
+    df_funnel_cust_att = build_funnel_df(cust_att, "Attendees", cust_mql_stages, cust_sal_stages, cust_sql_stages, cust_opp_stages)
 
     # Plotting in a 2x2 grid
     col1, col2 = st.columns(2)
@@ -69,6 +76,7 @@ if uploaded_file:
         st.plotly_chart(px.funnel(df_funnel_cust_reg, x='number', y='stage', title="Customer Registrants"), use_container_width=True)
     with col4:
         st.plotly_chart(px.funnel(df_funnel_cust_att, x='number', y='stage', title="Customer Attendees"), use_container_width=True)
+        
     # 2. Promotion Channels & Volume
     st.subheader("2. Promotion Channels & Volume")
     webinars_run = st.number_input("Total Webinars Run", min_value=1, value=10)

@@ -106,8 +106,20 @@ if uploaded_file:
         
         # Group and sum the fractional values
         channel_stats = df_channels.groupby('Campaign Source1').agg(
-            Regist
-
+            Registrations=('reg_weighted', 'sum'),
+            Attendees=('att_weighted', 'sum')
+        ).reset_index()
+        
+        # Plotting two pie charts
+        col_pie1, col_pie2 = st.columns(2)
+        
+        with col_pie1:
+            fig_reg_pie = px.pie(channel_stats, names='Campaign Source1', values='Registrations', title="Registrations by Channel (Fractional)")
+            st.plotly_chart(fig_reg_pie, use_container_width=True)
+            
+        with col_pie2:
+            fig_att_pie = px.pie(channel_stats, names='Campaign Source1', values='Attendees', title="Attendees by Channel (Fractional)")
+            st.plotly_chart(fig_att_pie, use_container_width=True)
     # 3. Micro-Conversions & Engagement
     st.subheader("3. Micro-Conversions & Engagement")
     total_reg_volume = df['reg_volume'].sum()

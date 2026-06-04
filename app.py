@@ -19,10 +19,13 @@ if uploaded_file:
     with st.expander("View Raw Data"):
         st.dataframe(df)
 
+ 
     # Pre-calculate base metrics used across the dashboard
     df['Customer Status'] = df['Lifecycle Stage'].apply(lambda x: 'Existing' if 'Customer' in str(x) else 'Net-New')
-    df['reg_volume'] = df['Live Demo Registered'].dropna().apply(lambda x: len(str(x).split(',')))
-    df['att_volume'] = df['Live Demo Attended'].dropna().apply(lambda x: len(str(x).split(',')))
+    
+    # Standardize delimiters to ensure accurate frequency counts
+    df['reg_volume'] = df['Live Demo Registered'].dropna().apply(lambda x: len(str(x).replace(';', ',').split(',')))
+    df['att_volume'] = df['Live Demo Attended'].dropna().apply(lambda x: len(str(x).replace(';', ',').split(',')))
 
     # --- NARRATIVE PART 1: The Top Line ---
     st.header("Engagement Overview")

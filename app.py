@@ -84,6 +84,40 @@ if uploaded_file:
         fig_att_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
         st.plotly_chart(fig_att_dist, use_container_width=True)
 
+    # Day of Week Analysis
+    st.subheader("Day of Week Analysis")
+    
+    # Process Registration Days
+    reg_dates = df['Live Demo Registered'].dropna().astype(str).str.replace(';', ',').str.split(',')
+    reg_exploded = reg_dates.explode().str.strip()
+    reg_days = reg_exploded.apply(lambda x: str(x).split(' ')[-1])
+    reg_day_counts = reg_days.value_counts().reset_index()
+    reg_day_counts.columns = ['Weekday', 'Registrations']
+
+    # Process Attendance Days
+    att_dates = df['Live Demo Attended'].dropna().astype(str).str.replace(';', ',').str.split(',')
+    att_exploded = att_dates.explode().str.strip()
+    att_days = att_exploded.apply(lambda x: str(x).split(' ')[-1])
+    att_day_counts = att_days.value_counts().reset_index()
+    att_day_counts.columns = ['Weekday', 'Attendees']
+
+    # Merge the two datasets
+    day_stats = pd.merge(reg_day_counts, att_day_counts, on='Weekday', how='outer').fillna(0)
+    
+    # Force chronological sorting so the chart isn't alphabetical
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_stats['Weekday'] = pd.Categorical(day_stats['Weekday'], categories=days_order, ordered=True)
+    day_stats = day_stats.sort_values('Weekday')
+
+    fig_days = px.bar(
+        day_stats, 
+        x='Weekday', 
+        y=['Registrations', 'Attendees'], 
+        barmode='group',
+        title="Volume by Day of the Week"
+    )
+    st.plotly_chart(fig_days, use_container_width=True)
+
     st.divider()
 
     # --- NARRATIVE PART 2: The Audience ---

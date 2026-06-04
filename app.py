@@ -150,37 +150,53 @@ if uploaded_file:
     
     st.plotly_chart(fig_gauge, use_container_width=True)
 
-    # 4. Audience Segmentation & Quality
+    # 4. Audience Segmentation & Quality (Updated Layout, Word Cloud, and Histogram)
     st.subheader("4. Audience Segmentation & Quality")
-    col1, col2, col3 = st.columns(3)
 
     # Net-new vs Existing
     df['Customer Status'] = df['Lifecycle Stage'].apply(lambda x: 'Existing' if 'Customer' in str(x) else 'Net-New')
     fig_status = px.pie(df, names='Customer Status', title='Net-New vs Existing')
-    col1.plotly_chart(fig_status, use_container_width=True)
+    st.plotly_chart(fig_status, use_container_width=True)
 
-    # Persona / Job Title Logic
-    def categorize_title(title):
-        title = str(title).lower()
-        if any(x in title for x in ['cio', 'vp', 'chief', 'director', 'head']):
-            return 'Decision Maker'
-        elif any(x in title for x in ['manager', 'specialist', 'procurement', 'admin']):
-            return 'Gatekeeper/Evaluator'
-        return 'Other'
-
+    # Persona / Job Title Word Cloud
+    st.write("**Job Title Word Cloud**")
     if 'Job Title' in df.columns:
-        df['Persona'] = df['Job Title'].apply(categorize_title)
-        fig_persona = px.pie(df, names='Persona', title='Persona Breakdown')
-        col2.plotly_chart(fig_persona, use_container_width=True)
+        import matplotlib.pyplot as plt
+        from wordcloud import WordCloud
 
-    # Company Size (FTE)
+        # Drop nulls and combine all titles into one giant string
+        titles = df['Job Title'].dropna().astype(str).tolist()
+        text = " ".join(titles)
+        
+        if text.strip():
+            # Generate the word cloud image
+            wordcloud = WordCloud(width=1200, height=500, background_color='#0E1117', colormap='Blues').generate(text)
+            
+            # Plot it using matplotlib
+            fig_wc, ax = plt.subplots(figsize=(12, 5), facecolor='#0E1117')
+            ax.imshow(wordcloud, interpolation='bilinear')
+            ax.axis('off')
+            st.pyplot(fig_wc)
+        else:
+            st.warning("No valid job titles found to generate word cloud.")
+
+    # Company Size (FTE) Histogram
     if 'FTE' in df.columns:
         df['FTE'] = pd.to_numeric(df['FTE'], errors='coerce')
-        bins = [0, 50, 200, 100000]
-        labels = ['1-50', '51-200', '250+']
-        df['Company Size'] = pd.cut(df['FTE'], bins=bins, labels=labels)
-        fig_fte = px.pie(df, names='Company Size', title='Company Size (FTE)')
-        col3.plotly_chart(fig_fte, use_container_width=True)
+        df_fte = df.dropna(subset=['FTE'])
+        
+        if not df_fte.empty:
+            fig_hist = px.histogram(
+                df_fte, 
+                x="FTE", 
+                title="Company Size (FTE) Distribution",
+                labels={'FTE': 'Full Time Employees'}
+            )
+            # Force the bucket sizes to 5000 increments
+            fig_hist.update_traces(xbins=dict(start=0, size=5000))
+            st.plotly_chart(fig_hist, use_container_width=True)
+        else:
+            st.warning("No valid FTE data found to generate histogram.")
 
     # 5. Sales Follow-up (MQL to SAL Conversion by Month)
     st.subheader("5. Sales Follow-up Execution (March vs May)")

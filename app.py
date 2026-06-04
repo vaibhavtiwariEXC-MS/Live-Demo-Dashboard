@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Webinar Performance", layout="wide")
-st.title("Webinar Performance Dashboard")
+st.set_page_config(page_title="Live Demo Performance", layout="wide")
+st.title("Live Demo Performance Dashboard")
 
 uploaded_file = st.file_uploader("Upload HubSpot Export (CSV or Excel)", type=["csv", "xlsx"])
 
@@ -34,7 +34,7 @@ if uploaded_file:
     col_tot_met, col_tot_gauge, col_unq_met, col_unq_gauge = st.columns([1, 1.5, 1, 1.5])
     
     with col_tot_met:
-        st.metric(label="Total Webinars Run", value=17)
+        st.metric(label="Total Live Demos Run", value=17)
         
         total_reg_volume = df['reg_volume'].sum()
         total_att_volume = df['att_volume'].sum()

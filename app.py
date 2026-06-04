@@ -180,14 +180,34 @@ if uploaded_file:
         text = " ".join(titles)
         
         if text.strip():
-            st.write("**Job Title Distribution**")
+            # 1. Word Cloud View
+            st.write("**Job Title Distribution (Word Cloud)**")
             wordcloud = WordCloud(width=1200, height=400, background_color='#0E1117', colormap='Blues').generate(text)
             fig_wc, ax = plt.subplots(figsize=(12, 4), facecolor='#0E1117')
             ax.imshow(wordcloud, interpolation='bilinear')
             ax.axis('off')
             st.pyplot(fig_wc)
-
-    st.divider()
+            
+            # 2. Treemap View
+            st.write("**Job Title Volume (Treemap)**")
+            df_titles = df.dropna(subset=['Job Title']).copy()
+            df_titles['Job Title'] = df_titles['Job Title'].astype(str).str.title().str.strip()
+            
+            title_counts = df_titles['Job Title'].value_counts().reset_index()
+            title_counts.columns = ['Job Title', 'Count']
+            title_counts['Root'] = 'All Roles'
+            
+            fig_tree = px.treemap(
+                title_counts, 
+                path=['Root', 'Job Title'], 
+                values='Count',
+                title="Job Titles Sized by Volume"
+            )
+            fig_tree.update_traces(textinfo="label+value")
+            fig_tree.update_layout(margin=dict(t=50, l=10, r=10, b=10))
+            st.plotly_chart(fig_tree, use_container_width=True)
+        else:
+            st.warning("No valid job titles found to generate visualizations.")
 
     # --- NARRATIVE PART 3: Acquisition Sources ---
     st.header("Acquisition Sources")

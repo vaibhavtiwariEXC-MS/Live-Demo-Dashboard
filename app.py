@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 
 st.set_page_config(page_title="Webinar Performance", layout="wide")
 st.title("Webinar Performance Dashboard")
@@ -16,47 +15,74 @@ if uploaded_file:
 
     st.success("Data loaded successfully.")
 
-    # 1. Standard Waterfall Funnel
+    # 1. Standard Waterfall Funnel (Updated Logic)
     st.subheader("1. Standard Waterfall Funnel Metrics")
     
-    # Count total registrations and attendances by splitting the multi-select date strings
-    df['reg_count'] = df['Live Demo Registered'].dropna().apply(lambda x: len(str(x).split(',')))
-    df['att_count'] = df['Live Demo Attended'].dropna().apply(lambda x: len(str(x).split(',')))
+    # Define known Registrants and Attendees (Filtering out nulls)
+    df_registrants = df[df['Live Demo Registered'].notna() & (df['Live Demo Registered'] != '')]
+    df_attendees = df[df['Live Demo Attended'].notna() & (df['Live Demo Attended'] != '')]
+
+    # Base counts (unique people)
+    total_registrants_count = len(df_registrants)
+    total_attendees_count = len(df_attendees)
+
+    # Strictly enforced pipeline stages
+    mql_stages = ['Marketing Qualified Lead', 'Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
+    sal_stages = ['Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity']
+    sql_stages = ['Sales Qualified Lead', 'Opportunity']
+    opp_stages = ['Opportunity']
+
+    # Registrant Funnel Math
+    reg_mqls = df_registrants['Lifecycle Stage'].isin(mql_stages).sum()
+    reg_sals = df_registrants['Lifecycle Stage'].isin(sal_stages).sum()
+    reg_sqls = df_registrants['Lifecycle Stage'].isin(sql_stages).sum()
+    reg_opps = df_registrants['Lifecycle Stage'].isin(opp_stages).sum()
+
+    # Attendee Funnel Math
+    att_mqls = df_attendees['Lifecycle Stage'].isin(mql_stages).sum()
+    att_sals = df_attendees['Lifecycle Stage'].isin(sal_stages).sum()
+    att_sqls = df_attendees['Lifecycle Stage'].isin(sql_stages).sum()
+    att_opps = df_attendees['Lifecycle Stage'].isin(opp_stages).sum()
+
+    # Build Funnel Data
+    funnel_reg_data = pd.DataFrame(dict(
+        number=[total_registrants_count, reg_mqls, reg_sals, reg_sqls, reg_opps],
+        stage=["Registrants", "MQLs", "SALs", "SQLs", "Opportunities"]
+    ))
     
-    total_registrants = df['reg_count'].sum()
-    total_attendees = df['att_count'].sum()
+    funnel_att_data = pd.DataFrame(dict(
+        number=[total_attendees_count, att_mqls, att_sals, att_sqls, att_opps],
+        stage=["Attendees", "MQLs", "SALs", "SQLs", "Opportunities"]
+    ))
 
-    # Cumulative Pipeline Logic
-    mql_stages = ['Marketing Qualified Lead', 'Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity', 'Customer', 'Customer - Lead', 'Customer - MQL', 'Customer - SAL', 'Customer - SQL', 'Customer - Opp']
-    sal_stages = ['Sales Accepted Lead', 'Sales Qualified Lead', 'Opportunity', 'Customer', 'Customer - Lead', 'Customer - MQL', 'Customer - SAL', 'Customer - SQL', 'Customer - Opp']
-    opp_stages = ['Opportunity', 'Customer', 'Customer - Lead', 'Customer - MQL', 'Customer - SAL', 'Customer - SQL', 'Customer - Opp']
-
-    total_mqls = df['Lifecycle Stage'].isin(mql_stages).sum()
-    total_sals = df['Lifecycle Stage'].isin(sal_stages).sum()
-    total_opps = df['Lifecycle Stage'].isin(opp_stages).sum()
-
-    funnel_data = dict(
-        number=[total_registrants, total_attendees, total_mqls, total_sals, total_opps],
-        stage=["Registrations", "Attendees", "MQLs", "SALs", "Opportunities"]
-    )
+    # Plot Two Funnels Side-by-Side
+    col_funnel1, col_funnel2 = st.columns(2)
     
-    fig_funnel = px.funnel(funnel_data, x='number', y='stage')
-    st.plotly_chart(fig_funnel, use_container_width=True)
+    with col_funnel1:
+        fig_reg = px.funnel(funnel_reg_data, x='number', y='stage', title="Registrant Funnel")
+        st.plotly_chart(fig_reg, use_container_width=True)
+        
+    with col_funnel2:
+        fig_att = px.funnel(funnel_att_data, x='number', y='stage', title="Attendee Funnel")
+        st.plotly_chart(fig_att, use_container_width=True)
 
     # 2. Promotion Channels & Volume
     st.subheader("2. Promotion Channels & Volume")
     webinars_run = st.number_input("Total Webinars Run", min_value=1, value=10)
     
+    # Calculate volume of multi-select dates for channels and show rate
+    df['reg_volume'] = df['Live Demo Registered'].dropna().apply(lambda x: len(str(x).split(',')))
+    df['att_volume'] = df['Live Demo Attended'].dropna().apply(lambda x: len(str(x).split(',')))
+    
     if 'Campaign Source1' in df.columns:
-        # Explode the comma-separated campaign sources
         df_channels = df.copy()
         df_channels['Campaign Source1'] = df_channels['Campaign Source1'].astype(str).str.split(',')
         df_channels = df_channels.explode('Campaign Source1')
         df_channels['Campaign Source1'] = df_channels['Campaign Source1'].str.strip()
         
         channel_stats = df_channels.groupby('Campaign Source1').agg(
-            Registrations=('reg_count', 'sum'),
-            Attendees=('att_count', 'sum')
+            Registrations=('reg_volume', 'sum'),
+            Attendees=('att_volume', 'sum')
         ).reset_index()
         
         fig_channels = px.bar(
@@ -64,14 +90,16 @@ if uploaded_file:
             x='Campaign Source1', 
             y=['Registrations', 'Attendees'], 
             barmode='group',
-            title="Registrations vs Attendance by Channel"
+            title="Total Volumes by Channel"
         )
         st.plotly_chart(fig_channels, use_container_width=True)
 
     # 3. Micro-Conversions & Engagement
     st.subheader("3. Micro-Conversions & Engagement")
-    show_rate = (total_attendees / total_registrants * 100) if total_registrants > 0 else 0
-    st.metric(label="Registration-to-Attendee Show Rate", value=f"{show_rate:.1f}%")
+    total_reg_volume = df['reg_volume'].sum()
+    total_att_volume = df['att_volume'].sum()
+    show_rate = (total_att_volume / total_reg_volume * 100) if total_reg_volume > 0 else 0
+    st.metric(label="Registration-to-Attendee Show Rate (Volume)", value=f"{show_rate:.1f}%")
 
     # 4. Audience Segmentation & Quality
     st.subheader("4. Audience Segmentation & Quality")
@@ -112,7 +140,6 @@ if uploaded_file:
     if date_col in df.columns:
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
         
-        # Filter for March and May cohorts
         march_mqls = df[df[date_col].dt.month == 3]
         may_mqls = df[df[date_col].dt.month == 5]
         

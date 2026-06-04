@@ -31,9 +31,9 @@ if uploaded_file:
     st.header("Engagement Overview")
     st.write("Tracking overall volume, show rates, and frequency across all sessions.")
     
-    col_metric, col_gauge = st.columns([1, 2])
+    col_tot_met, col_tot_gauge, col_unq_met, col_unq_gauge = st.columns([1, 1.5, 1, 1.5])
     
-    with col_metric:
+    with col_tot_met:
         st.metric(label="Total Webinars Run", value=17)
         
         total_reg_volume = df['reg_volume'].sum()
@@ -42,12 +42,12 @@ if uploaded_file:
         st.metric(label="Total Registrations", value=int(total_reg_volume))
         st.metric(label="Total Attendees", value=int(total_att_volume))
 
-    with col_gauge:
+    with col_tot_gauge:
         show_rate = (total_att_volume / total_reg_volume * 100) if total_reg_volume > 0 else 0
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
             value=show_rate,
-            title={'text': "Registration-to-Attendee Show Rate"},
+            title={'text': "Total Show Rate (Volume)"},
             number={'suffix': "%", 'valueformat': ".1f"},
             gauge={
                 'axis': {'range': [0, 100], 'tickwidth': 1},
@@ -62,6 +62,38 @@ if uploaded_file:
         fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
         st.plotly_chart(fig_gauge, use_container_width=True)
 
+    with col_unq_met:
+        # Blank space to push metrics down so they align with the left column
+        st.write("") 
+        st.write("")
+        st.write("")
+        
+        unique_registrants = len(df[df['reg_volume'] > 0])
+        unique_attendees = len(df[df['att_volume'] > 0])
+        
+        st.metric(label="Unique Registrants", value=unique_registrants)
+        st.metric(label="Unique Attendees", value=unique_attendees)
+
+    with col_unq_gauge:
+        unique_show_rate = (unique_attendees / unique_registrants * 100) if unique_registrants > 0 else 0
+        fig_gauge_unq = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=unique_show_rate,
+            title={'text': "Unique Show Rate (People)"},
+            number={'suffix': "%", 'valueformat': ".1f"},
+            gauge={
+                'axis': {'range': [0, 100], 'tickwidth': 1},
+                'bar': {'color': "#ff7f0e"}, 
+                'steps': [
+                    {'range': [0, 40], 'color': "rgba(255, 99, 71, 0.2)"},
+                    {'range': [40, 60], 'color': "rgba(255, 215, 0, 0.2)"},
+                    {'range': [60, 100], 'color': "rgba(144, 238, 144, 0.2)"}
+                ],
+            }
+        ))
+        fig_gauge_unq.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
+        st.plotly_chart(fig_gauge_unq, use_container_width=True)
+
     # Frequency Distribution Graphs
     reg_dist = df[df['reg_volume'] > 0]['reg_volume'].value_counts().reset_index()
     reg_dist.columns = ['Number of Registrations', 'People']
@@ -75,7 +107,6 @@ if uploaded_file:
     
     with col_dist1:
         fig_reg_dist = px.bar(reg_dist, x='Number of Registrations', y='People', title="Registration Frequency per Person")
-        # Force the X-axis to show whole numbers only
         fig_reg_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
         st.plotly_chart(fig_reg_dist, use_container_width=True)
         
@@ -87,24 +118,20 @@ if uploaded_file:
     # Day of Week Analysis
     st.subheader("Day of Week Analysis")
     
-    # Process Registration Days
     reg_dates = df['Live Demo Registered'].dropna().astype(str).str.replace(';', ',').str.split(',')
     reg_exploded = reg_dates.explode().str.strip()
     reg_days = reg_exploded.apply(lambda x: str(x).split(' ')[-1])
     reg_day_counts = reg_days.value_counts().reset_index()
     reg_day_counts.columns = ['Weekday', 'Registrations']
 
-    # Process Attendance Days
     att_dates = df['Live Demo Attended'].dropna().astype(str).str.replace(';', ',').str.split(',')
     att_exploded = att_dates.explode().str.strip()
     att_days = att_exploded.apply(lambda x: str(x).split(' ')[-1])
     att_day_counts = att_days.value_counts().reset_index()
     att_day_counts.columns = ['Weekday', 'Attendees']
 
-    # Merge the two datasets
     day_stats = pd.merge(reg_day_counts, att_day_counts, on='Weekday', how='outer').fillna(0)
     
-    # Force chronological sorting so the chart isn't alphabetical
     days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     day_stats['Weekday'] = pd.Categorical(day_stats['Weekday'], categories=days_order, ordered=True)
     day_stats = day_stats.sort_values('Weekday')
@@ -119,7 +146,6 @@ if uploaded_file:
     st.plotly_chart(fig_days, use_container_width=True)
 
     st.divider()
-
     # --- NARRATIVE PART 2: The Audience ---
     st.header("Who is Attending?")
     st.write("Breaking down the audience by customer status, company size, and job title.")

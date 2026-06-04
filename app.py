@@ -120,12 +120,34 @@ if uploaded_file:
         with col_pie2:
             fig_att_pie = px.pie(channel_stats, names='Campaign Source1', values='Attendees', title="Attendees by Channel (Fractional)")
             st.plotly_chart(fig_att_pie, use_container_width=True)
-    # 3. Micro-Conversions & Engagement
+            
+    # 3. Micro-Conversions & Engagement (Updated to Gauge Chart)
     st.subheader("3. Micro-Conversions & Engagement")
+    
     total_reg_volume = df['reg_volume'].sum()
     total_att_volume = df['att_volume'].sum()
     show_rate = (total_att_volume / total_reg_volume * 100) if total_reg_volume > 0 else 0
-    st.metric(label="Registration-to-Attendee Show Rate (Volume)", value=f"{show_rate:.1f}%")
+
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=show_rate,
+        title={'text': "Registration-to-Attendee Show Rate"},
+        number={'suffix': "%", 'valueformat': ".1f"},
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1},
+            'bar': {'color': "#1f77b4"},
+            'steps': [
+                {'range': [0, 40], 'color': "rgba(255, 99, 71, 0.2)"},
+                {'range': [40, 60], 'color': "rgba(255, 215, 0, 0.2)"},
+                {'range': [60, 100], 'color': "rgba(144, 238, 144, 0.2)"}
+            ],
+        }
+    ))
+    
+    # Adjust margins so the gauge doesn't take up excessive vertical space
+    fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
+    
+    st.plotly_chart(fig_gauge, use_container_width=True)
 
     # 4. Audience Segmentation & Quality
     st.subheader("4. Audience Segmentation & Quality")

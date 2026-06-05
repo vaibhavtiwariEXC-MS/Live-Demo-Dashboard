@@ -147,68 +147,84 @@ if uploaded_file:
 
     st.divider()
     # --- NARRATIVE PART 2: The Audience ---
-    st.header("Who is Attending?")
-    st.write("Breaking down the audience by customer status, company size, and job title.")
+    st.header("Who is in the Pipeline?")
+    st.write("Comparing the profile of people who registered versus the people who actually showed up.")
 
-    col_status, col_fte = st.columns(2)
-    
-    with col_status:
-        fig_status = px.pie(df, names='Customer Status', title='Net-New vs Existing Audience')
-        st.plotly_chart(fig_status, use_container_width=True)
+    # Filter cohorts based on volume calculations from Part 1
+    df_reg = df[df['reg_volume'] > 0].copy()
+    df_att = df[df['att_volume'] > 0].copy()
 
-    with col_fte:
-        if 'FTE' in df.columns:
-            df['FTE'] = pd.to_numeric(df['FTE'], errors='coerce')
-            df_fte = df.dropna(subset=['FTE'])
-            if not df_fte.empty:
-                fig_hist = px.histogram(
-                    df_fte, 
-                    x="FTE", 
-                    title="Company Size (FTE) Distribution",
-                    labels={'FTE': 'Full Time Employees'}
+    # Create UI Tabs
+    tab_reg, tab_att = st.tabs(["Registrants", "Attendees"])
+
+    def render_audience_section(cohort_df, cohort_label):
+        col_status, col_fte = st.columns(2)
+        
+        with col_status:
+            fig_status = px.pie(cohort_df, names='Customer Status', title=f'Net-New vs Existing ({cohort_label})')
+            st.plotly_chart(fig_status, use_container_width=True)
+
+        with col_fte:
+            if 'FTE' in cohort_df.columns:
+                cohort_df['FTE'] = pd.to_numeric(cohort_df['FTE'], errors='coerce')
+                df_fte = cohort_df.dropna(subset=['FTE'])
+                if not df_fte.empty:
+                    fig_hist = px.histogram(
+                        df_fte, 
+                        x="FTE", 
+                        title=f"Company Size (FTE) Distribution ({cohort_label})",
+                        labels={'FTE': 'Full Time Employees'}
+                    )
+                    fig_hist.update_traces(xbins=dict(start=0, size=5000))
+                    st.plotly_chart(fig_hist, use_container_width=True)
+                else:
+                    st.warning("No valid FTE data found.")
+
+        if 'Job Title' in cohort_df.columns:
+            import matplotlib.pyplot as plt
+            from wordcloud import WordCloud
+            
+            titles = cohort_df['Job Title'].dropna().astype(str).tolist()
+            text = " ".join(titles)
+            
+            if text.strip():
+                # 1. Word Cloud View
+                st.write(f"**Job Title Distribution (Word Cloud) - {cohort_label}**")
+                wordcloud = WordCloud(width=1200, height=400, background_color='#0E1117', colormap='Blues').generate(text)
+                fig_wc, ax = plt.subplots(figsize=(12, 4), facecolor='#0E1117')
+                ax.imshow(wordcloud, interpolation='bilinear')
+                ax.axis('off')
+                st.pyplot(fig_wc)
+                
+                # 2. Treemap View
+                st.write(f"**Job Title Volume (Treemap) - {cohort_label}**")
+                df_titles = cohort_df.dropna(subset=['Job Title']).copy()
+                df_titles['Job Title'] = df_titles['Job Title'].astype(str).str.title().str.strip()
+                
+                title_counts = df_titles['Job Title'].value_counts().reset_index()
+                title_counts.columns = ['Job Title', 'Count']
+                title_counts['Root'] = 'All Roles'
+                
+                fig_tree = px.treemap(
+                    title_counts, 
+                    path=['Root', 'Job Title'], 
+                    values='Count',
+                    title=f"Job Titles Sized by Volume ({cohort_label})"
                 )
-                fig_hist.update_traces(xbins=dict(start=0, size=5000))
-                st.plotly_chart(fig_hist, use_container_width=True)
+                fig_tree.update_traces(textinfo="label+value")
+                fig_tree.update_layout(margin=dict(t=50, l=10, r=10, b=10))
+                st.plotly_chart(fig_tree, use_container_width=True)
             else:
-                st.warning("No valid FTE data found to generate histogram.")
+                st.warning("No valid job titles found.")
 
-    if 'Job Title' in df.columns:
-        import matplotlib.pyplot as plt
-        from wordcloud import WordCloud
-        
-        titles = df['Job Title'].dropna().astype(str).tolist()
-        text = " ".join(titles)
-        
-        if text.strip():
-            # 1. Word Cloud View
-            st.write("**Job Title Distribution (Word Cloud)**")
-            wordcloud = WordCloud(width=1200, height=400, background_color='#0E1117', colormap='Blues').generate(text)
-            fig_wc, ax = plt.subplots(figsize=(12, 4), facecolor='#0E1117')
-            ax.imshow(wordcloud, interpolation='bilinear')
-            ax.axis('off')
-            st.pyplot(fig_wc)
-            
-            # 2. Treemap View
-            st.write("**Job Title Volume (Treemap)**")
-            df_titles = df.dropna(subset=['Job Title']).copy()
-            df_titles['Job Title'] = df_titles['Job Title'].astype(str).str.title().str.strip()
-            
-            title_counts = df_titles['Job Title'].value_counts().reset_index()
-            title_counts.columns = ['Job Title', 'Count']
-            title_counts['Root'] = 'All Roles'
-            
-            fig_tree = px.treemap(
-                title_counts, 
-                path=['Root', 'Job Title'], 
-                values='Count',
-                title="Job Titles Sized by Volume"
-            )
-            fig_tree.update_traces(textinfo="label+value")
-            fig_tree.update_layout(margin=dict(t=50, l=10, r=10, b=10))
-            st.plotly_chart(fig_tree, use_container_width=True)
-        else:
-            st.warning("No valid job titles found to generate visualizations.")
+    # Render the tabs
+    with tab_reg:
+        render_audience_section(df_reg, "Registrants")
 
+    with tab_att:
+        render_audience_section(df_att, "Attendees")
+
+    st.divider()
     # --- NARRATIVE PART 3: Acquisition Sources ---
     st.header("Acquisition Sources")
     st.write("Tracking which channels drive registrations versus actual attendance.")

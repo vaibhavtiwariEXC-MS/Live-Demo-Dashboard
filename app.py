@@ -34,7 +34,7 @@ if uploaded_file:
     col_tot_met, col_tot_gauge, col_unq_met, col_unq_gauge = st.columns([1, 1.5, 1, 1.5])
     
     with col_tot_met:
-        st.metric(label="Total Live Demos Run", value=17)
+        st.metric(label="Total Webinars Run", value=17)
         
         total_reg_volume = df['reg_volume'].sum()
         total_att_volume = df['att_volume'].sum()
@@ -63,7 +63,6 @@ if uploaded_file:
         st.plotly_chart(fig_gauge, use_container_width=True)
 
     with col_unq_met:
-        # Blank space to push metrics down so they align with the left column
         st.write("") 
         st.write("")
         st.write("")
@@ -110,42 +109,6 @@ if uploaded_file:
         fig_reg_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
         st.plotly_chart(fig_reg_dist, use_container_width=True)
         
-    with col_dist2:
-        fig_att_dist = px.bar(att_dist, x='Number of Attendances', y='People', title="Attendance Frequency per Person")
-        fig_att_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
-        st.plotly_chart(fig_att_dist, use_container_width=True)
-
-    # Day of Week Analysis
-    st.subheader("Day of Week Analysis")
-    
-    reg_dates = df['Live Demo Registered'].dropna().astype(str).str.replace(';', ',').str.split(',')
-    reg_exploded = reg_dates.explode().str.strip()
-    reg_days = reg_exploded.apply(lambda x: str(x).split(' ')[-1])
-    reg_day_counts = reg_days.value_counts().reset_index()
-    reg_day_counts.columns = ['Weekday', 'Registrations']
-
-    att_dates = df['Live Demo Attended'].dropna().astype(str).str.replace(';', ',').str.split(',')
-    att_exploded = att_dates.explode().str.strip()
-    att_days = att_exploded.apply(lambda x: str(x).split(' ')[-1])
-    att_day_counts = att_days.value_counts().reset_index()
-    att_day_counts.columns = ['Weekday', 'Attendees']
-
-    day_stats = pd.merge(reg_day_counts, att_day_counts, on='Weekday', how='outer').fillna(0)
-    
-    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    day_stats['Weekday'] = pd.Categorical(day_stats['Weekday'], categories=days_order, ordered=True)
-    day_stats = day_stats.sort_values('Weekday')
-
-    fig_days = px.bar(
-        day_stats, 
-        x='Weekday', 
-        y=['Registrations', 'Attendees'], 
-        barmode='group',
-        title="Volume by Day of the Week"
-    )
-    st.plotly_chart(fig_days, use_container_width=True)
-
-    st.divider()
     # --- NARRATIVE PART 2: The Audience ---
     st.header("Who is in the Pipeline?")
     st.write("Comparing the profile of people who registered versus the people who actually showed up.")

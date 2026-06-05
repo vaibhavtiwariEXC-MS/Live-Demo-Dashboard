@@ -31,18 +31,21 @@ if uploaded_file:
     st.header("Engagement Overview")
     st.write("Tracking overall volume, show rates, and frequency across all sessions.")
     
-    col_tot_met, col_tot_gauge, col_unq_met, col_unq_gauge = st.columns([1, 1.5, 1, 1.5])
+    # 1. Core Metrics Row
+    total_reg_volume = df['reg_volume'].sum()
+    total_att_volume = df['att_volume'].sum()
+    unique_registrants = len(df[df['reg_volume'] > 0])
+    unique_attendees = len(df[df['att_volume'] > 0])
     
-    with col_tot_met:
-        st.metric(label="Total Webinars Run", value=17)
-        
-        total_reg_volume = df['reg_volume'].sum()
-        total_att_volume = df['att_volume'].sum()
-        
-        st.metric(label="Total Registrations", value=int(total_reg_volume))
-        st.metric(label="Total Attendees", value=int(total_att_volume))
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric(label="Total Registrations", value=int(total_reg_volume))
+    col_m2.metric(label="Unique Registrants", value=unique_registrants)
+    col_m3.metric(label="Total Attendees", value=int(total_att_volume))
+    col_m4.metric(label="Unique Attendees", value=unique_attendees)
 
-    with col_tot_gauge:
+    # 2. Gauges Row
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
         show_rate = (total_att_volume / total_reg_volume * 100) if total_reg_volume > 0 else 0
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
@@ -62,18 +65,7 @@ if uploaded_file:
         fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-    with col_unq_met:
-        st.write("") 
-        st.write("")
-        st.write("")
-        
-        unique_registrants = len(df[df['reg_volume'] > 0])
-        unique_attendees = len(df[df['att_volume'] > 0])
-        
-        st.metric(label="Unique Registrants", value=unique_registrants)
-        st.metric(label="Unique Attendees", value=unique_attendees)
-
-    with col_unq_gauge:
+    with col_g2:
         unique_show_rate = (unique_attendees / unique_registrants * 100) if unique_registrants > 0 else 0
         fig_gauge_unq = go.Figure(go.Indicator(
             mode="gauge+number",
@@ -93,21 +85,61 @@ if uploaded_file:
         fig_gauge_unq.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=300)
         st.plotly_chart(fig_gauge_unq, use_container_width=True)
 
-    # Frequency Distribution Graphs
-    reg_dist = df[df['reg_volume'] > 0]['reg_volume'].value_counts().reset_index()
-    reg_dist.columns = ['Number of Registrations', 'People']
-    reg_dist = reg_dist.sort_values('Number of Registrations')
-
-    att_dist = df[df['att_volume'] > 0]['att_volume'].value_counts().reset_index()
-    att_dist.columns = ['Number of Attendances', 'People']
-    att_dist = att_dist.sort_values('Number of Attendances')
+    # 3. Frequency Distribution Graphs (Using safe rename_axis to prevent dataframe shape errors)
+    reg_dist = df[df['reg_volume'] > 0]['reg_volume'].value_counts().rename_axis('Number of Registrations').reset_index(name='People')
+    att_dist = df[df['att_volume'] > 0]['att_volume'].value_counts().rename_axis('Number of Attendances').reset_index(name='People')
 
     col_dist1, col_dist2 = st.columns(2)
-    
     with col_dist1:
-        fig_reg_dist = px.bar(reg_dist, x='Number of Registrations', y='People', title="Registration Frequency per Person")
-        fig_reg_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
-        st.plotly_chart(fig_reg_dist, use_container_width=True)
+        if not reg_dist.empty:
+            fig_reg_dist = px.bar(reg_dist, x='Number of Registrations', y='People', title="Registration Frequency per Person")
+            fig_reg_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+            st.plotly_chart(fig_reg_dist, use_container_width=True)
+        
+    with col_dist2:
+        if not att_dist.empty:
+            fig_att_dist = px.bar(att_dist, x='Number of Attendances', y='People', title="Attendance Frequency per Person")
+            fig_att_dist.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+            st.plotly_chart(fig_att_dist, use_container_width=True)
+
+    # 4. Pacing & Timing (Using regex for bulletproof date extraction)
+    st.subheader("Pacing & Timing")
+    
+    reg_dates_raw = df['Live Demo Registered'].dropna().astype(str).str.replace(';', ',').str.split(',').explode().str.strip()
+    att_dates_raw = df['Live Demo Attended'].dropna().astype(str).str.replace(';', ',').str.split(',').explode().str.strip()
+
+    # Extract just the date segment (MM.DD.YYYY) and drop invalid text
+    reg_dates_clean = pd.to_datetime(reg_dates_raw.str.extract(r'(\d{1,2}[\.\-/]\d{1,2}[\.\-/]\d{4})')[0], errors='coerce').dropna()
+    att_dates_clean = pd.to_datetime(att_dates_raw.str.extract(r'(\d{1,2}[\.\-/]\d{1,2}[\.\-/]\d{4})')[0], errors='coerce').dropna()
+
+    if not reg_dates_clean.empty or not att_dates_clean.empty:
+        reg_weeks = reg_dates_clean.dt.to_period('W-MON').dt.start_time.value_counts().rename_axis('Week Starting').reset_index(name='Registrations') if not reg_dates_clean.empty else pd.DataFrame(columns=['Week Starting', 'Registrations'])
+        att_weeks = att_dates_clean.dt.to_period('W-MON').dt.start_time.value_counts().rename_axis('Week Starting').reset_index(name='Attendees') if not att_dates_clean.empty else pd.DataFrame(columns=['Week Starting', 'Attendees'])
+        
+        weekly_stats = pd.merge(reg_weeks, att_weeks, on='Week Starting', how='outer').fillna(0).sort_values('Week Starting')
+
+        fig_weekly = px.line(weekly_stats, x='Week Starting', y=['Registrations', 'Attendees'], title="Week-by-Week Trend", markers=True)
+        fig_weekly.update_layout(xaxis_tickformat="%b %d")
+        st.plotly_chart(fig_weekly, use_container_width=True)
+    else:
+        st.warning("Could not parse dates for week-by-week trend.")
+
+    # Day of Week Analysis (Safely grabbing just the day name)
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    
+    reg_day_counts = reg_dates_raw.apply(lambda x: str(x).split()[-1]).value_counts().rename_axis('Weekday').reset_index(name='Registrations')
+    att_day_counts = att_dates_raw.apply(lambda x: str(x).split()[-1]).value_counts().rename_axis('Weekday').reset_index(name='Attendees')
+
+    day_stats = pd.merge(reg_day_counts, att_day_counts, on='Weekday', how='outer').fillna(0)
+    day_stats = day_stats[day_stats['Weekday'].isin(days_order)].copy()
+    day_stats['Weekday'] = pd.Categorical(day_stats['Weekday'], categories=days_order, ordered=True)
+    day_stats = day_stats.sort_values('Weekday')
+
+    if not day_stats.empty:
+        fig_days = px.bar(day_stats, x='Weekday', y=['Registrations', 'Attendees'], barmode='group', title="Volume by Day of the Week")
+        st.plotly_chart(fig_days, use_container_width=True)
+
+    st.divider()
         
     # --- NARRATIVE PART 2: The Audience ---
     st.header("Who is in the Pipeline?")
